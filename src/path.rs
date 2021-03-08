@@ -59,13 +59,18 @@ impl UtilSubCommand for PathCommand {
 }
 
 fn print_path(path: &Path, use_unix_style: bool) {
-    let absolute_path = match path.canonicalize() {
+    let absolute_path = match path.to_absolute() {
         Ok(p) => p,
-        Err(_) => {
-            error!("No such file or directory: {}", path.to_string_lossy());
+        Err(e) => {
+            error!("Get current directory failed: {}", e.to_string());
             return;
         }
     };
+
+    if !absolute_path.exists() {
+        error!("No such file or directory: {:?}", absolute_path);
+        return;
+    }
 
     let path_string = if use_unix_style {
         absolute_path.to_unix_style()
@@ -96,6 +101,8 @@ fn executable_candidates(exe: &str) -> Vec<PathBuf> {
         sys_paths.extend(env::split_paths(&p));
     }
 
+    let binary_lowercase = exe.to_ascii_lowercase();
+
     #[cfg(windows)]
     {
         let binary = PathBuf::from(exe);
@@ -103,8 +110,8 @@ fn executable_candidates(exe: &str) -> Vec<PathBuf> {
             if let Some(ext) = env::var_os("PATHEXT") {
                 let binaries_with_extension = env::split_paths(&ext)
                     .map(|extension| {
-                        let mut bin = exe.to_string();
-                        bin.push_str(&extension.to_string_lossy());
+                        let mut bin = binary_lowercase.clone();
+                        bin.push_str(&extension.to_string_lossy().to_ascii_lowercase());
                         bin
                     })
                     .collect::<Vec<_>>();
@@ -121,7 +128,7 @@ fn executable_candidates(exe: &str) -> Vec<PathBuf> {
     }
 
     candidates.extend(sys_paths.into_iter().map(|mut candidate| {
-        candidate.push(exe);
+        candidate.push(binary_lowercase.clone());
         candidate
     }));
 
