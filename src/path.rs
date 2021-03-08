@@ -83,6 +83,8 @@ fn print_path(path: &Path, use_unix_style: bool) {
             link_to.to_string_lossy().to_string().red()
         };
         println!(" {} {}", "-->".cyan().bold(), colored_link);
+    } else {
+        println!();
     };
 }
 

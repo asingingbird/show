@@ -1,8 +1,5 @@
 use clap::{App, ArgMatches};
-use std::env;
-use std::os::windows::ffi::OsStrExt;
-use std::path::{Component, Path, Prefix};
-use winapi::um::winbase::GetBinaryTypeW;
+use std::path::{Component, Path, Prefix, PathBuf};
 
 pub trait UtilSubCommand {
     fn util_sub_command<'a, 'b>() -> App<'a, 'b>;
@@ -11,12 +8,16 @@ pub trait UtilSubCommand {
 
 /// Converts a windows style path name to unix style path name
 pub trait PathExt {
+    fn to_absolute(&self) -> PathBuf;
     fn to_unix_style(&self) -> String;
     fn is_symlink(&self) -> bool;
     fn is_executable(&self) -> bool;
 }
 
 impl PathExt for Path {
+    fn to_absolute(&self) -> PathBuf {
+        PathBuf::from(&self)
+    }
     fn to_unix_style(&self) -> String {
         if cfg!(windows) {
             let mut path = String::with_capacity(self.as_os_str().len());
@@ -49,7 +50,7 @@ impl PathExt for Path {
                         continue;
                     }
                     Component::RootDir => {}
-                    Component::CurDir => {}
+                    Component::CurDir => path.push_str("."),
                     Component::ParentDir => path.push_str(".."),
                     Component::Normal(p) => path.push_str(&p.to_string_lossy()),
                 }
@@ -77,13 +78,18 @@ impl PathExt for Path {
     fn is_executable(&self) -> bool {
         #[cfg(unix)]
         {
+            use std::os::unix::fs::MetadataExt;
             return self.metadata().map_or(false, |meta| {
-                meta.is_file() && meta.permissions().mode() & 0o111 != 0
+                meta.is_file() && meta.mode() & 0o111 != 0
             });
         }
 
         #[cfg(windows)]
         {
+            use std::env;
+            use std::os::windows::ffi::OsStrExt;
+            use winapi::um::winbase::GetBinaryTypeW;
+
             // Check file existence first
             if !self.is_file() {
                 return false;
