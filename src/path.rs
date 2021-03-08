@@ -9,7 +9,7 @@ pub struct PathCommand;
 
 impl UtilSubCommand for PathCommand {
     fn util_sub_command<'a, 'b>() -> App<'a, 'b> {
-        let mut cmd = SubCommand::with_name("path")
+        SubCommand::with_name("path")
             .about("show the path of a file or directory")
             .version("1.0")
             .arg(
@@ -39,17 +39,13 @@ impl UtilSubCommand for PathCommand {
                     .long("all")
                     .short("a")
                     .help("Print all possible paths"),
-            );
-        #[cfg(windows)]
-        {
-            cmd = cmd.arg(
+            )
+            .arg(
                 Arg::with_name("unix")
                     .long("unix")
                     .short("u")
-                    .help("Print path in unix style"),
-            );
-        }
-        cmd
+                    .help("Print path in unix style, default on unix os"),
+            )
     }
 
     #[inline]
@@ -59,37 +55,41 @@ impl UtilSubCommand for PathCommand {
 }
 
 fn print_path(path: &Path, use_unix_style: bool) {
-    let absolute_path = match path.to_absolute() {
+    let cwd = match env::current_dir() {
         Ok(p) => p,
         Err(e) => {
             error!("Get current directory failed: {}", e.to_string());
             return;
         }
     };
+    let absolute_path = path.to_absolute(&cwd);
 
-    if !absolute_path.exists() {
+    // Do not follow symlink here
+    if absolute_path.symlink_metadata().is_err() {
         error!("No such file or directory: {:?}", absolute_path);
         return;
     }
 
-    let path_string = if use_unix_style {
+    let path_string = if use_unix_style && cfg!(windows) {
         absolute_path.to_unix_style()
     } else {
         absolute_path.to_string_lossy().to_string()
     };
 
-    print!("{}", path_string);
-
     if absolute_path.is_symlink() {
-        let link_to = absolute_path.read_link().unwrap();
+        let symlink = absolute_path.read_link().unwrap();
+
+        let mut link_to = absolute_path;
+        link_to.pop();
+        link_to = symlink.to_absolute(&link_to);
         let colored_link = if link_to.exists() {
             link_to.to_string_lossy().to_string().green()
         } else {
             link_to.to_string_lossy().to_string().red()
         };
-        println!(" {} {}", "-->".cyan().bold(), colored_link);
+        println!("{} {} {}", path_string, "-->".cyan().bold(), colored_link);
     } else {
-        println!();
+        println!("{}", path_string);
     };
 }
 
