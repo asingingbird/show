@@ -1,17 +1,18 @@
-mod cli;
 mod completion;
 mod diff;
 mod path;
 mod utils;
+mod which;
 
-use cli::*;
-use path::*;
-
-use crate::completion::CompletionCommand;
-use colored::Colorize;
 use diff::*;
+use path::*;
+use which::*;
+use completion::*;
+use utils::*;
+
+use clap::App;
+use colored::Colorize;
 use fern::colors::ColoredLevelConfig;
-use utils::UtilSubCommand;
 
 fn setup_logger() {
     fern::Dispatch::new()
@@ -36,12 +37,24 @@ fn setup_logger() {
         });
 }
 
+pub fn build_app() -> App<'static, 'static> {
+    App::new("show")
+        .author("asingingbird.cb")
+        .version("1.0")
+        .about("Show some magic things")
+        .subcommand(WhichCommand::util_sub_command())
+        .subcommand(PathCommand::util_sub_command())
+        .subcommand(DiffCommand::util_sub_command())
+        .subcommand(CompletionCommand::util_sub_command())
+}
+
 fn main() {
     setup_logger();
 
-    let matches = build_cli().get_matches();
+    let matches = build_app().get_matches();
 
     match matches.subcommand() {
+        ("which", Some(m)) => WhichCommand::run(m),
         ("path", Some(m)) => PathCommand::run(m),
         ("diff", Some(m)) => DiffCommand::run(m),
         ("generate-completions", Some(m)) => CompletionCommand::run(m),

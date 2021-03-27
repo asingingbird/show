@@ -1,5 +1,5 @@
 use super::utils::UtilSubCommand;
-use crate::cli::build_cli;
+use crate::build_app;
 use clap::{App, Arg, ArgMatches, Shell, SubCommand};
 use log::error;
 use std::fs::File;
@@ -61,9 +61,9 @@ fn run_gen_completion(args: &ArgMatches) {
                     return;
                 }
             };
-            build_cli().gen_completions_to("show", shell, &mut output_file);
+            build_app().gen_completions_to("show", shell, &mut output_file);
         } else {
-            build_cli().gen_completions_to("show", shell, &mut std::io::stdout());
+            build_app().gen_completions_to("show", shell, &mut std::io::stdout());
         }
     };
 }

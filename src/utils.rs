@@ -1,5 +1,8 @@
 use clap::{App, ArgMatches};
+use colored::Colorize;
+use std::env;
 use std::path::{Component, Path, PathBuf};
+use log::error;
 
 pub trait UtilSubCommand {
     fn util_sub_command<'a, 'b>() -> App<'a, 'b>;
@@ -9,7 +12,7 @@ pub trait UtilSubCommand {
 /// Converts a windows style path name to unix style path name
 pub trait PathExt {
     fn to_absolute(&self, relative_to: &Path) -> PathBuf;
-    fn to_unix_style(&self) -> String;
+    fn to_string(&self) -> String;
     fn is_symlink(&self) -> bool;
     fn is_executable(&self) -> bool;
 }
@@ -59,8 +62,8 @@ impl PathExt for Path {
         path
     }
 
-    /// Returns the posix style path name, e.g., use `/` separator instead of `\`
-    fn to_unix_style(&self) -> String {
+    /// Returns the path name as `String`, e.g., use `/` separator instead of `\` on Windows
+    fn to_string(&self) -> String {
         if cfg!(windows) {
             use std::path::Prefix;
             let mut path = String::with_capacity(self.as_os_str().len());
@@ -130,7 +133,6 @@ impl PathExt for Path {
 
         #[cfg(windows)]
         {
-            use std::env;
             use std::os::windows::ffi::OsStrExt;
             use winapi::um::winbase::GetBinaryTypeW;
 
@@ -142,7 +144,7 @@ impl PathExt for Path {
             if let Some(exec) = std::env::var_os("PATHEXT") {
                 if let Some(extension) = self.extension() {
                     return env::split_paths(&exec)
-                        .map(|e| e.to_string_lossy().to_string())
+                        .map(|e| e.to_string())
                         // Remove the leading `.`
                         .any(|s| extension.to_string_lossy().eq_ignore_ascii_case(&s[1..]));
                 }
@@ -162,4 +164,45 @@ impl PathExt for Path {
             unsafe { GetBinaryTypeW(win_path, binary_type_ptr) != 0 }
         }
     }
+}
+
+pub fn print_path(path: &Path) {
+    let cwd = match env::current_dir() {
+        Ok(p) => p,
+        Err(e) => {
+            error!("Get current directory failed: {}", e.to_string());
+            return;
+        }
+    };
+    let absolute_path = path.to_absolute(&cwd);
+
+    // Do not follow symlink here
+    if absolute_path.symlink_metadata().is_err() {
+        error!("No such file or directory: {:?}", absolute_path);
+        return;
+    }
+
+    let path_string = if absolute_path.is_dir() {
+        absolute_path.to_string().blue()
+    } else if absolute_path.is_executable() {
+        absolute_path.to_string().yellow()
+    } else {
+        absolute_path.to_string().normal()
+    };
+
+    if absolute_path.is_symlink() {
+        let symlink = absolute_path.read_link().unwrap();
+
+        let mut link_to = absolute_path;
+        link_to.pop();
+        link_to = symlink.to_absolute(&link_to);
+        let colored_link = if link_to.exists() {
+            link_to.to_string().green()
+        } else {
+            link_to.to_string().red()
+        };
+        println!("{} {} {}", path_string, "-->".cyan().bold(), colored_link);
+    } else {
+        println!("{}", path_string);
+    };
 }
