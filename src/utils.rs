@@ -1,8 +1,11 @@
+use ansi_term::{Color::*, Style};
 use clap::{App, ArgMatches};
-use colored::Colorize;
-use std::env;
-use std::path::{Component, Path, PathBuf};
 use log::error;
+use memchr::memchr;
+use std::env;
+use std::fs::File;
+use std::io::Read;
+use std::path::{Component, Path, PathBuf};
 
 pub trait UtilSubCommand {
     fn util_sub_command<'a, 'b>() -> App<'a, 'b>;
@@ -15,6 +18,7 @@ pub trait PathExt {
     fn to_string(&self) -> String;
     fn is_symlink(&self) -> bool;
     fn is_executable(&self) -> bool;
+    fn is_binary(&self) -> bool;
 }
 
 impl PathExt for Path {
@@ -164,6 +168,31 @@ impl PathExt for Path {
             unsafe { GetBinaryTypeW(win_path, binary_type_ptr) != 0 }
         }
     }
+
+    /// Returns `true` if this path is a binary file.
+    ///
+    /// # Note
+    /// This function returns false if the path does not exists, or is not a file,
+    /// or lack of permission to read from this file.
+    ///
+    /// # How it works
+    /// If a file contains any null byte in its first 1024 bytes, we assume it's a binary file,
+    /// this method may not be reliable.
+    fn is_binary(&self) -> bool {
+        if self.is_file() {
+            if let Ok(mut file) = File::open(self) {
+                let mut content = [0; 1024];
+                if let Ok(bytes_read) = file.read(&mut content) {
+                    // Treat PDF format as binary
+                    if bytes_read >= 4 && &content[..4] == b"%PDF" {
+                        return true;
+                    }
+                    return memchr(b'\x00', &content[..bytes_read]).is_some();
+                }
+            }
+        }
+        false
+    }
 }
 
 pub fn print_path(path: &Path) {
@@ -182,12 +211,13 @@ pub fn print_path(path: &Path) {
         return;
     }
 
+    let path_string = absolute_path.to_string();
     let path_string = if absolute_path.is_dir() {
-        absolute_path.to_string().blue()
+        Blue.paint(path_string)
     } else if absolute_path.is_executable() {
-        absolute_path.to_string().yellow()
+        Yellow.paint(path_string)
     } else {
-        absolute_path.to_string().normal()
+        Style::default().paint(path_string)
     };
 
     if absolute_path.is_symlink() {
@@ -197,11 +227,16 @@ pub fn print_path(path: &Path) {
         link_to.pop();
         link_to = symlink.to_absolute(&link_to);
         let colored_link = if link_to.exists() {
-            link_to.to_string().green()
+            Green.paint(link_to.to_string())
         } else {
-            link_to.to_string().red()
+            Red.paint(link_to.to_string())
         };
-        println!("{} {} {}", path_string, "-->".cyan().bold(), colored_link);
+        println!(
+            "{} {} {}",
+            path_string,
+            Cyan.bold().paint("-->"),
+            colored_link
+        );
     } else {
         println!("{}", path_string);
     };

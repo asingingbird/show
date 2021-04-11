@@ -1,17 +1,20 @@
 mod completion;
+mod count;
 mod diff;
+mod location;
 mod path;
 mod utils;
 mod which;
 
+use completion::*;
 use diff::*;
 use path::*;
-use which::*;
-use completion::*;
 use utils::*;
+use which::*;
 
+use crate::location::run_location;
+use ansi_term::Color::*;
 use clap::App;
-use colored::Colorize;
 use fern::colors::ColoredLevelConfig;
 
 fn setup_logger() {
@@ -32,7 +35,7 @@ fn setup_logger() {
         .unwrap_or_else(|e| {
             println!(
                 "{}",
-                format!("Setup logger failed: {}.", e.to_string()).red()
+                Red.paint(format!("Setup logger failed: {}.", e.to_string()))
             )
         });
 }
@@ -49,8 +52,8 @@ pub fn build_app() -> App<'static, 'static> {
 }
 
 fn main() {
-    setup_logger();
-
+    run_location();
+    return;
     let matches = build_app().get_matches();
 
     match matches.subcommand() {

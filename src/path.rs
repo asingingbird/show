@@ -1,8 +1,8 @@
 use crate::utils::*;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use log::error;
 use std::env;
 use std::path::{Path, PathBuf};
-use log::error;
 
 pub struct PathCommand;
 
