@@ -4,6 +4,7 @@ mod diff;
 mod location;
 mod path;
 mod utils;
+mod walk;
 mod which;
 
 use completion::*;
@@ -52,8 +53,6 @@ pub fn build_app() -> App<'static, 'static> {
 }
 
 fn main() {
-    run_location();
-    return;
     let matches = build_app().get_matches();
 
     match matches.subcommand() {
